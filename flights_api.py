@@ -99,3 +99,52 @@ def get_flight_data(airport, month):
     
     return flights_list
 
+
+def store_flight_data(db_conn, flights_list):
+    """
+    Store flight and delay info in the database
+    
+    Creates two tables with shared integer key (flight_id):
+    - flights table: stores flight information
+    - flight_delays table: stores delay information (shares flight_id)
+    
+    Input: 
+        db_conn: SQLite connection object
+        flights_list: list of flight dictionaries
+    
+    Output: 
+        Inserts data into flights table and flight_delays table (checks duplicates)
+
+    """
+    
+    cursor = db_conn.cursor()
+    
+    # Create flights table if it doesn't exist to store main flight information
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS flights (
+            flight_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            flight_number TEXT NOT NULL,
+            airline TEXT NOT NULL,
+            departure_airport TEXT NOT NULL,
+            arrival_airport TEXT NOT NULL,
+            scheduled_departure TEXT NOT NULL,
+            actual_departure TEXT,
+            scheduled_arrival TEXT,
+            actual_arrival TEXT,
+            flight_status TEXT,
+            UNIQUE(flight_number, scheduled_departure)
+        )
+    ''')
+    
+    # Create flight_delays table if it doesn't exist
+    # This shares the flight_id integer key with flights table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS flight_delays (
+            delay_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            flight_id INTEGER NOT NULL,
+            delay_minutes INTEGER,
+            FOREIGN KEY (flight_id) REFERENCES flights (flight_id)
+        )
+    ''')
+    
+   
