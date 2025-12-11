@@ -8,7 +8,6 @@ import os
 from dotenv import load_dotenv
 import json
 
-# Load environment variables
 load_dotenv()
 
 api_key = os.getenv('AVIATIONSTACK_API_KEY')
@@ -27,7 +26,6 @@ if not api_key:
 print(f"API Key found: {api_key[:10]}... (showing first 10 chars)")
 print()
 
-# Test 1: Basic API call
 print("TEST 1: Fetching flights from Detroit (DTW)...")
 print("-" * 60)
 
@@ -46,7 +44,6 @@ print()
 if response.status_code == 200:
     data = response.json()
     
-    # Check for errors
     if 'error' in data:
         print("API ERROR:")
         print(json.dumps(data['error'], indent=2))
@@ -64,7 +61,7 @@ if response.status_code == 200:
             print("SAMPLE FLIGHT DATA:")
             print("-" * 60)
             
-            for i, flight in enumerate(data['data'][:3]):  # Show first 3
+            for i, flight in enumerate(data['data'][:3]): 
                 print(f"\nFlight {i+1}:")
                 print(f"  Flight Number: {flight.get('flight', {}).get('iata', 'N/A')}")
                 print(f"  Airline: {flight.get('airline', {}).get('name', 'N/A')}")
