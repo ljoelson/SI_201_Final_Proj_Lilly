@@ -5,6 +5,7 @@ import sqlite3
 from datetime import datetime
 
 load_dotenv()
+DB_NAME = "project_data.db"
 
 
 def get_flight_data(airport, month=None):
@@ -88,7 +89,7 @@ def store_flight_data(db_conn, flights_list):
     
     #Flights table
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS flights (
+        CREATE TABLE IF NOT EXISTS Flights (
             flight_id INTEGER PRIMARY KEY AUTOINCREMENT,
             flight_number TEXT NOT NULL,
             airline TEXT NOT NULL,
@@ -105,11 +106,11 @@ def store_flight_data(db_conn, flights_list):
     
     # Flight delays table
     cursor.execute('''
-        CREATE TABLE IF NOT EXISTS flight_delays (
+        CREATE TABLE IF NOT EXISTS FlightDelays (
             delay_id INTEGER PRIMARY KEY AUTOINCREMENT,
             flight_id INTEGER NOT NULL,
             delay_minutes INTEGER,
-            FOREIGN KEY (flight_id) REFERENCES flights (flight_id)
+            FOREIGN KEY (flight_id) REFERENCES Flights (flight_id)
         )
     ''')
     
@@ -119,7 +120,7 @@ def store_flight_data(db_conn, flights_list):
     for flight in flights_list:
         try:
             cursor.execute('''
-                INSERT INTO flights (
+                INSERT INTO Flights (
                     flight_number, airline, departure_airport, arrival_airport,
                     scheduled_departure, actual_departure, scheduled_arrival, 
                     actual_arrival, flight_status
@@ -139,7 +140,7 @@ def store_flight_data(db_conn, flights_list):
             flight_id = cursor.lastrowid
             
             cursor.execute('''
-                INSERT INTO flight_delays (flight_id, delay_minutes)
+                INSERT INTO FlightDelays (flight_id, delay_minutes)
                 VALUES (?, ?)
             ''', (flight_id, flight['delay_minutes']))
             
@@ -163,7 +164,6 @@ if __name__ == "__main__":
     print()
     
     airport_code = "DTW"
-    db_name = "flight_delays.db"
     
     flights = get_flight_data(airport_code, month=None)
     
@@ -179,11 +179,11 @@ if __name__ == "__main__":
         print("To try a different airport, edit this file and change:")
         print("  airport_code = 'DTW'  -->  airport_code = 'JFK'")
     else:
-        db_connection = sqlite3.connect(db_name)
+        db_connection = sqlite3.connect(DB_NAME)
         store_flight_data(db_connection, flights)
         
         cursor = db_connection.cursor()
-        cursor.execute("SELECT COUNT(*) FROM flights")
+        cursor.execute("SELECT COUNT(*) FROM Flights")
         total = cursor.fetchone()[0]
         
         print()
