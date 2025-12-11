@@ -2,7 +2,7 @@ import sqlite3
 import matplotlib.pyplot as plt
 from datetime import datetime
 
-def plot_avg_delay_by_month(db_name="final_project.db"):
+def plot_avg_delay_by_month(db_name="project_data.db"):
 
     conn = sqlite3.connect(db_name)
     cur = conn.cursor()
