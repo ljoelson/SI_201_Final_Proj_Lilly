@@ -2,7 +2,7 @@ import os
 import sqlite3
 from flights_api import get_flight_data, store_flight_data
 
-DB_NAME = "final_project.db"
+DB_NAME = "project_data.db"
 
 def main():
     print("Using database file:", os.path.abspath(DB_NAME))
