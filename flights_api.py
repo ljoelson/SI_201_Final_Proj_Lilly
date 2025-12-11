@@ -8,16 +8,6 @@ load_dotenv()
 
 
 def get_flight_data(airport, month=None):
-    """
-    Retrieve departure data from AviationStack API
-    
-    Input: 
-        airport (str): IATA airport code (e.g., 'DTW', 'JFK', 'LAX')
-        month (str): Optional month filter in format 'YYYY-MM' 
-    
-    Output: 
-        list of flight records (max 25 per call)
-    """
     
     api_key = os.getenv('AVIATIONSTACK_API_KEY')
     
@@ -30,7 +20,7 @@ def get_flight_data(airport, month=None):
     params = {
         'access_key': api_key,
         'dep_iata': airport,
-        'limit': 25,  # Max 25 items per run
+        'limit': 25, 
     }
     
     try:
@@ -60,13 +50,11 @@ def get_flight_data(airport, month=None):
                     if not scheduled_departure:
                         continue
                     
-                    # If month filter is specified, apply it
                     if month:
                         flight_date = scheduled_departure[:7]
                         if flight_date != month:
                             continue
                     
-                    # Extract flight record
                     flight_record = {
                         'flight_number': flight_info.get('iata', 'N/A'),
                         'airline': airline_info.get('name', 'N/A'),
@@ -95,22 +83,10 @@ def get_flight_data(airport, month=None):
 
 
 def store_flight_data(db_conn, flights_list):
-    """
-    Store flight and delay info in database with two tables sharing flight_id
-    
-    Input: 
-        db_conn: SQLite connection
-        flights_list: list of flight dicts
-    
-    Output: 
-        Number of flights inserted (prevents duplicates)
-    
-    Responsible: Lilly
-    """
-    
+
     cursor = db_conn.cursor()
     
-    # Create flights table
+    #Flights table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS flights (
             flight_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -127,7 +103,7 @@ def store_flight_data(db_conn, flights_list):
         )
     ''')
     
-    # Create flight_delays table (shares flight_id key)
+    # Flight delays table
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS flight_delays (
             delay_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -142,7 +118,6 @@ def store_flight_data(db_conn, flights_list):
     
     for flight in flights_list:
         try:
-            # Insert into flights table
             cursor.execute('''
                 INSERT INTO flights (
                     flight_number, airline, departure_airport, arrival_airport,
@@ -163,7 +138,6 @@ def store_flight_data(db_conn, flights_list):
             
             flight_id = cursor.lastrowid
             
-            # Insert into flight_delays table using shared flight_id
             cursor.execute('''
                 INSERT INTO flight_delays (flight_id, delay_minutes)
                 VALUES (?, ?)
@@ -188,11 +162,9 @@ if __name__ == "__main__":
     print("=" * 60)
     print()
     
-    # Try DTW first, but if no data, suggests alternatives
     airport_code = "DTW"
     db_name = "flight_delays.db"
     
-    # Don't filter by month - just get whatever is available
     flights = get_flight_data(airport_code, month=None)
     
     if not flights:
@@ -210,13 +182,12 @@ if __name__ == "__main__":
         db_connection = sqlite3.connect(db_name)
         store_flight_data(db_connection, flights)
         
-        # Show progress
         cursor = db_connection.cursor()
         cursor.execute("SELECT COUNT(*) FROM flights")
         total = cursor.fetchone()[0]
         
         print()
-        print(f"📊 Total flights in database: {total}")
+        print(f"Total flights in database: {total}")
         
         if total < 100:
             print(f"   Need {100 - total} more to reach 100")
