@@ -169,7 +169,7 @@ if __name__ == "__main__":
     
     if not flights:
         print()
-        print("⚠️  No flights found for DTW.")
+        print(" No flights found for DTW.")
         print()
         print("TROUBLESHOOTING:")
         print("1. Run: python test_aviationstack_api.py")
