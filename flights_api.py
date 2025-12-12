@@ -140,7 +140,7 @@ def store_flight_data(db_conn, flights_list):
             flight_id = cursor.lastrowid
             
             cursor.execute('''
-                INSERT INTO FlightDelays (flight_id, delay_minutes)
+                INSERT INTO flight_delays (flight_id, delay_minutes)
                 VALUES (?, ?)
             ''', (flight_id, flight['delay_minutes']))
             
