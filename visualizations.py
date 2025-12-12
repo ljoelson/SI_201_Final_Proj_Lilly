@@ -13,7 +13,7 @@ def plot_avg_delay_by_month(db_name="project_data.db"):
             SUBSTR(f.scheduled_departure, 1, 7) as month,
             AVG(fd.delay_minutes) as avg_delay
         FROM Flights f
-        JOIN flight_delays fd ON f.flight_id = fd.flight_id
+        JOIN FlightDelays fd ON f.flight_id = fd.flight_id
         WHERE f.scheduled_departure IS NOT NULL
         GROUP BY month
         ORDER BY month
