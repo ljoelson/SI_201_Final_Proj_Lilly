@@ -17,8 +17,8 @@ def calc_avg_delay_precip(db_conn):
     flight_count = cur.fetchone()[0]
     print(f"Total flights: {flight_count}")
     
-    # Check flight_delays
-    cur.execute("SELECT COUNT(*) FROM flight_delays WHERE delay_minutes IS NOT NULL")
+    # Check FlightDelays
+    cur.execute("SELECT COUNT(*) FROM FlightDelays WHERE delay_minutes IS NOT NULL")
     delay_count = cur.fetchone()[0]
     print(f"Flights with delay data: {delay_count}")
     
@@ -55,7 +55,7 @@ def calc_avg_delay_precip(db_conn):
             F.scheduled_departure,
             W.fetch_date
         FROM Flights F
-        JOIN flight_delays fd ON F.flight_id = fd.flight_id
+        JOIN FlightDelays fd ON F.flight_id = fd.flight_id
         JOIN WeatherData W
         WHERE fd.delay_minutes IS NOT NULL
           AND W.description IS NOT NULL
@@ -79,7 +79,7 @@ def calc_avg_delay_precip(db_conn):
     flight_weather_sql = """
         SELECT fd.delay_minutes, W.description
         FROM Flights F
-        JOIN flight_delays fd ON F.flight_id = fd.flight_id
+        JOIN FlightDelays fd ON F.flight_id = fd.flight_id
         CROSS JOIN WeatherData W
         WHERE fd.delay_minutes IS NOT NULL
           AND W.description IS NOT NULL
