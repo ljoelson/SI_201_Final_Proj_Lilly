@@ -8,7 +8,7 @@ def plot_avg_delay_by_hour(db_name="project_data.db"):
     conn = sqlite3.connect(db_name)
     cur = conn.cursor()
     
-    # Average delay by hour
+    # Avg delay
     query = """
         SELECT 
             CAST(SUBSTR(f.scheduled_departure, 12, 2) AS INTEGER) as hour,
@@ -33,7 +33,7 @@ def plot_avg_delay_by_hour(db_name="project_data.db"):
     avg_delays = [row[1] for row in results]
     flight_counts = [row[2] for row in results]
     
-    # Making the bar chart
+    # Chart
     plt.figure(figsize=(14, 6))
     bars = plt.bar(hours, avg_delays, color='steelblue', alpha=0.8)
     plt.xlabel('Hour of Day (24-hour format)', fontsize=12)
@@ -43,7 +43,7 @@ def plot_avg_delay_by_hour(db_name="project_data.db"):
     plt.grid(axis='y', alpha=0.3)
     plt.tight_layout()
     
-
+    # Labels
     for i, (hour, delay, count) in enumerate(zip(hours, avg_delays, flight_counts)):
         plt.text(hour, delay + 0.5, f'{delay:.1f}m\n({count})', 
                 ha='center', va='bottom', fontsize=8)
@@ -70,8 +70,11 @@ def plot_avg_precipitation_by_hour(db_name="project_data.db"):
                 OR LOWER(description) LIKE '%drizzle%'
                 OR LOWER(description) LIKE '%shower%'
                 OR LOWER(description) LIKE '%thunder%'
+                OR LOWER(description) LIKE '%snow%'
+                OR LOWER(description) LIKE '%sleet%'
+                OR LOWER(description) LIKE '%hail%'
                 THEN 1 ELSE 0 
-            END) as rainy_records
+            END) as precip_records
         FROM WeatherData
         WHERE datetime IS NOT NULL
         GROUP BY hour
@@ -86,7 +89,6 @@ def plot_avg_precipitation_by_hour(db_name="project_data.db"):
         print("No weather data found in database")
         return
     
-    # Calculate percentages
     hours = []
     precipitation_pct = []
     record_counts = []
@@ -94,32 +96,31 @@ def plot_avg_precipitation_by_hour(db_name="project_data.db"):
     for row in results:
         hour = row[0]
         total = row[1]
-        rainy = row[2]
-        pct = (rainy / total * 100) if total > 0 else 0
+        precip = row[2]
+        pct = (precip / total * 100) if total > 0 else 0
         
         hours.append(hour)
         precipitation_pct.append(pct)
         record_counts.append(total)
     
-    # Bar chart
+    # Chart
     plt.figure(figsize=(14, 6))
     plt.bar(hours, precipitation_pct, color='skyblue', alpha=0.8)
     plt.xlabel('Hour of Day (24-hour format)', fontsize=12)
-    plt.ylabel('Rainy Conditions (%)', fontsize=12)
-    plt.title('Percentage of Rainy Weather Conditions by Hour of Day', fontsize=14, fontweight='bold')
+    plt.ylabel('Precipitation Conditions (%)', fontsize=12)
+    plt.title('Percentage of Precipitation (Rain/Snow) by Hour of Day', fontsize=14, fontweight='bold')
     plt.xticks(range(0, 24), fontsize=10)
     plt.grid(axis='y', alpha=0.3)
     plt.ylim(0, 100)
     plt.tight_layout()
     
-
     for hour, pct, count in zip(hours, precipitation_pct, record_counts):
         plt.text(hour, pct + 2, f'{pct:.1f}%\n({count})', 
                 ha='center', va='bottom', fontsize=8)
     
     plt.show()
     
-    print(f"\nRainy conditions by hour of day:")
+    print(f"\nPrecipitation conditions by hour of day:")
     for hour, pct, count in zip(hours, precipitation_pct, record_counts):
         print(f"  {hour:02d}:00 - {pct:.2f}% ({count} records)")
 
