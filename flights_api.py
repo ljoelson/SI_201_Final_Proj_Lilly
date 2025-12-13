@@ -39,7 +39,7 @@ def get_flight_data(airport, month=None):
                 print(f"API returned {len(data['data'])} flights")
                 
                 for flight in data['data']:
-                    # Get departure info
+                    
                     departure = flight.get('departure', {})
                     arrival = flight.get('arrival', {})
                     flight_info = flight.get('flight', {})
@@ -47,7 +47,7 @@ def get_flight_data(airport, month=None):
                     
                     scheduled_departure = departure.get('scheduled')
                     
-                    # Skip if no departure time
+
                     if not scheduled_departure:
                         continue
                     
@@ -83,23 +83,87 @@ def get_flight_data(airport, month=None):
     return flights_list
 
 
+def get_or_create_id(cursor, table, column, value):
+    """Helper function to get or create an ID for a lookup table"""
+    cursor.execute(f"SELECT id FROM {table} WHERE {column} = ?", (value,))
+    result = cursor.fetchone()
+    
+    if result:
+        return result[0]
+    else:
+        cursor.execute(f"INSERT INTO {table} ({column}) VALUES (?)", (value,))
+        return cursor.lastrowid
+
+
+def migrate_old_tables(cursor):
+    """Rename old tables if they exist"""
+
+    cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Flights'")
+    if cursor.fetchone():
+
+        cursor.execute("PRAGMA table_info(Flights)")
+        columns = [col[1] for col in cursor.fetchall()]
+        
+        if 'airline_id' not in columns:
+            print("\n Found old Flights table structure. Migrating...")
+            
+            cursor.execute("ALTER TABLE Flights RENAME TO Flights_old")
+            print("   Renamed Flights to Flights_old")
+            
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='FlightDelays'")
+            if cursor.fetchone():
+                cursor.execute("ALTER TABLE FlightDelays RENAME TO FlightDelays_old")
+                print("   Renamed FlightDelays to FlightDelays_old")
+            
+            print("   Old tables preserved with '_old' suffix")
+            print()
+
+
 def store_flight_data(db_conn, flights_list):
 
     cursor = db_conn.cursor()
     
-    #Flights table
+    migrate_old_tables(cursor)
+    db_conn.commit()
+
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Airlines (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT UNIQUE NOT NULL
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Airports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            iata_code TEXT UNIQUE NOT NULL
+        )
+    ''')
+    
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS FlightStatuses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            status TEXT UNIQUE NOT NULL
+        )
+    ''')
+    
+    # Modified Flights table with foreign keys
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Flights (
             flight_id INTEGER PRIMARY KEY AUTOINCREMENT,
             flight_number TEXT NOT NULL,
-            airline TEXT NOT NULL,
-            departure_airport TEXT NOT NULL,
-            arrival_airport TEXT NOT NULL,
+            airline_id INTEGER NOT NULL,
+            departure_airport_id INTEGER NOT NULL,
+            arrival_airport_id INTEGER NOT NULL,
             scheduled_departure TEXT NOT NULL,
             actual_departure TEXT,
             scheduled_arrival TEXT,
             actual_arrival TEXT,
-            flight_status TEXT,
+            status_id INTEGER,
+            FOREIGN KEY (airline_id) REFERENCES Airlines (id),
+            FOREIGN KEY (departure_airport_id) REFERENCES Airports (id),
+            FOREIGN KEY (arrival_airport_id) REFERENCES Airports (id),
+            FOREIGN KEY (status_id) REFERENCES FlightStatuses (id),
             UNIQUE(flight_number, scheduled_departure)
         )
     ''')
@@ -119,28 +183,34 @@ def store_flight_data(db_conn, flights_list):
     
     for flight in flights_list:
         try:
+            #IDs for repeating strings
+            airline_id = get_or_create_id(cursor, 'Airlines', 'name', flight['airline'])
+            dep_airport_id = get_or_create_id(cursor, 'Airports', 'iata_code', flight['departure_airport'])
+            arr_airport_id = get_or_create_id(cursor, 'Airports', 'iata_code', flight['arrival_airport'])
+            status_id = get_or_create_id(cursor, 'FlightStatuses', 'status', flight['flight_status'])
+            
             cursor.execute('''
                 INSERT INTO Flights (
-                    flight_number, airline, departure_airport, arrival_airport,
+                    flight_number, airline_id, departure_airport_id, arrival_airport_id,
                     scheduled_departure, actual_departure, scheduled_arrival, 
-                    actual_arrival, flight_status
+                    actual_arrival, status_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 flight['flight_number'],
-                flight['airline'],
-                flight['departure_airport'],
-                flight['arrival_airport'],
+                airline_id,
+                dep_airport_id,
+                arr_airport_id,
                 flight['scheduled_departure'],
                 flight['actual_departure'],
                 flight['scheduled_arrival'],
                 flight['actual_arrival'],
-                flight['flight_status']
+                status_id
             ))
             
             flight_id = cursor.lastrowid
             
             cursor.execute('''
-                INSERT INTO flight_delays (flight_id, delay_minutes)
+                INSERT INTO FlightDelays (flight_id, delay_minutes)
                 VALUES (?, ?)
             ''', (flight_id, flight['delay_minutes']))
             
@@ -154,12 +224,21 @@ def store_flight_data(db_conn, flights_list):
     print(f"✓ Inserted {inserted_count} new flights")
     print(f"✓ Skipped {duplicate_count} duplicates")
     
+    cursor.execute("SELECT COUNT(*) FROM Airlines")
+    print(f"✓ Total unique airlines: {cursor.fetchone()[0]}")
+    
+    cursor.execute("SELECT COUNT(*) FROM Airports")
+    print(f"✓ Total unique airports: {cursor.fetchone()[0]}")
+    
+    cursor.execute("SELECT COUNT(*) FROM FlightStatuses")
+    print(f"✓ Total unique flight statuses: {cursor.fetchone()[0]}")
+    
     return inserted_count
 
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("FLIGHT DATA COLLECTION")
+    print("FLIGHT DATA COLLECTION (NORMALIZED)")
     print("=" * 60)
     print()
     
@@ -193,7 +272,16 @@ if __name__ == "__main__":
             print(f"   Need {100 - total} more to reach 100")
             print(f"   Run this script again to collect more!")
         else:
-            print(f"   ✓ Goal reached! (100+)")
+            print(f"   Goal reached! (100+)")
+        
+
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='Flights_old'")
+        if cursor.fetchone():
+            cursor.execute("SELECT COUNT(*) FROM Flights_old")
+            old_count = cursor.fetchone()[0]
+            print()
+            print(f"Your old Flights table still exists as 'Flights_old' ({old_count} rows)")
+            print("   You can delete it later if you don't need it anymore")
         
         db_connection.close()
     
