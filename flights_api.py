@@ -85,6 +85,10 @@ def get_flight_data(airport, month=None):
 
 def get_or_create_id(cursor, table, column, value):
     """Helper function to get or create an ID for a lookup table"""
+    # Handle NULL values
+    if value is None or value == 'N/A':
+        return None
+    
     cursor.execute(f"SELECT id FROM {table} WHERE {column} = ?", (value,))
     result = cursor.fetchone()
     
@@ -120,7 +124,15 @@ def store_flight_data(db_conn, flights_list):
         )
     ''')
     
-    # Modified table with keys
+    # New lookup table for timestamps
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS Timestamps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT UNIQUE NOT NULL
+        )
+    ''')
+    
+    # Modified Flights table with timestamp foreign keys
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS Flights (
             flight_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -128,16 +140,20 @@ def store_flight_data(db_conn, flights_list):
             airline_id INTEGER NOT NULL,
             departure_airport_id INTEGER NOT NULL,
             arrival_airport_id INTEGER NOT NULL,
-            scheduled_departure TEXT NOT NULL,
-            actual_departure TEXT,
-            scheduled_arrival TEXT,
-            actual_arrival TEXT,
+            scheduled_departure_id INTEGER NOT NULL,
+            actual_departure_id INTEGER,
+            scheduled_arrival_id INTEGER,
+            actual_arrival_id INTEGER,
             status_id INTEGER,
             FOREIGN KEY (airline_id) REFERENCES Airlines (id),
             FOREIGN KEY (departure_airport_id) REFERENCES Airports (id),
             FOREIGN KEY (arrival_airport_id) REFERENCES Airports (id),
+            FOREIGN KEY (scheduled_departure_id) REFERENCES Timestamps (id),
+            FOREIGN KEY (actual_departure_id) REFERENCES Timestamps (id),
+            FOREIGN KEY (scheduled_arrival_id) REFERENCES Timestamps (id),
+            FOREIGN KEY (actual_arrival_id) REFERENCES Timestamps (id),
             FOREIGN KEY (status_id) REFERENCES FlightStatuses (id),
-            UNIQUE(flight_number, scheduled_departure)
+            UNIQUE(flight_number, scheduled_departure_id)
         )
     ''')
     
@@ -155,27 +171,33 @@ def store_flight_data(db_conn, flights_list):
     
     for flight in flights_list:
         try:
-            # IDs for repeating strings
+            # Get IDs for repeating strings
             airline_id = get_or_create_id(cursor, 'Airlines', 'name', flight['airline'])
             dep_airport_id = get_or_create_id(cursor, 'Airports', 'iata_code', flight['departure_airport'])
             arr_airport_id = get_or_create_id(cursor, 'Airports', 'iata_code', flight['arrival_airport'])
             status_id = get_or_create_id(cursor, 'FlightStatuses', 'status', flight['flight_status'])
             
+            # Get IDs for timestamps (handles NULL values)
+            scheduled_dep_id = get_or_create_id(cursor, 'Timestamps', 'timestamp', flight['scheduled_departure'])
+            actual_dep_id = get_or_create_id(cursor, 'Timestamps', 'timestamp', flight['actual_departure'])
+            scheduled_arr_id = get_or_create_id(cursor, 'Timestamps', 'timestamp', flight['scheduled_arrival'])
+            actual_arr_id = get_or_create_id(cursor, 'Timestamps', 'timestamp', flight['actual_arrival'])
+            
             cursor.execute('''
                 INSERT INTO Flights (
                     flight_number, airline_id, departure_airport_id, arrival_airport_id,
-                    scheduled_departure, actual_departure, scheduled_arrival, 
-                    actual_arrival, status_id
+                    scheduled_departure_id, actual_departure_id, scheduled_arrival_id, 
+                    actual_arrival_id, status_id
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 flight['flight_number'],
                 airline_id,
                 dep_airport_id,
                 arr_airport_id,
-                flight['scheduled_departure'],
-                flight['actual_departure'],
-                flight['scheduled_arrival'],
-                flight['actual_arrival'],
+                scheduled_dep_id,
+                actual_dep_id,
+                scheduled_arr_id,
+                actual_arr_id,
                 status_id
             ))
             
@@ -205,12 +227,15 @@ def store_flight_data(db_conn, flights_list):
     cursor.execute("SELECT COUNT(*) FROM FlightStatuses")
     print(f"✓ Total unique flight statuses: {cursor.fetchone()[0]}")
     
+    cursor.execute("SELECT COUNT(*) FROM Timestamps")
+    print(f"✓ Total unique timestamps: {cursor.fetchone()[0]}")
+    
     return inserted_count
 
 
 if __name__ == "__main__":
     print("=" * 60)
-    print("FLIGHT DATA COLLECTION (NORMALIZED)")
+    print("FLIGHT DATA COLLECTION (FULLY NORMALIZED)")
     print("=" * 60)
     print()
     
