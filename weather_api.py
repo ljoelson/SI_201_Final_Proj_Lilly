@@ -2,7 +2,7 @@ import requests
 import sqlite3
 import os
 from dotenv import load_dotenv
-from datetime import datetime
+from datetime import datetime, timedelta
 
 load_dotenv()
 weatherapi_key = os.getenv("API_KEY")
@@ -10,7 +10,8 @@ DB_NAME = "project_data.db"
 
 
 def get_weather_data(city_name):
-    """Fetch real-time weather forecast data"""
+
+    # print("debug api key:", weatherapi_key)
 
     # detroit
     lat, lon = 42.3314, -83.0458
@@ -21,7 +22,7 @@ def get_weather_data(city_name):
     )
 
     try:
-        print(f"Fetching real-time weather data for {city_name}...")
+        print(f"Fetching real-time weather data for {city_name}")
         response = requests.get(url)
         
         if response.status_code == 200:
@@ -33,7 +34,7 @@ def get_weather_data(city_name):
                 return []
 
             weather_list = []
-            fetch_timestamp = datetime.now().isoformat()  # Capture fetch time
+            fetch_timestamp = datetime.now().isoformat()
 
             for entry in data["list"][:25]:
                 main = entry["main"]
@@ -41,89 +42,144 @@ def get_weather_data(city_name):
                 wind = entry["wind"]
 
                 weather_list.append({
-                    "fetch_timestamp": fetch_timestamp,  # Add fetch time to make each call unique
-                    "datetime": entry["dt"],  # Unix timestamp
+                    "fetch_timestamp": fetch_timestamp,
+                    "datetime": entry["dt"], # Unix timestamp
                     "temp": main["temp"],
                     "humidity": main["humidity"],
                     "wind_speed": wind["speed"],
                     "description": weather["description"]
                 })
 
-            print(f"API returned {len(weather_list)} weather records")
+            print(f"Collected {len(weather_list)} forecast rows")
             return weather_list
-        else:
-            print(f"HTTP Error {response.status_code}: {response.text}")
-            return []
     
+        else:
+            print(f"Error {response.status_code}: {response.text}")
+            return []
+
     except Exception as e:
         print(f"Error: {e}")
         return []
 
-
-def store_weather_data(conn, weather_list):
+# db for integer keys ****************************************************
+def init_database(conn):
     cur = conn.cursor()
+    
+    # weather descriptions
     cur.execute("""
-        CREATE TABLE IF NOT EXISTS WeatherData (
+        CREATE TABLE IF NOT EXISTS WeatherDescriptions (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            datetime INTEGER,
-            temp REAL,
-            humidity REAL,
-            wind_speed REAL,
-            description TEXT,
-            UNIQUE(datetime)
+            description TEXT UNIQUE NOT NULL
+        )
+    """)
+    
+    # fetch timestamps
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS FetchTimestamps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            timestamp TEXT UNIQUE NOT NULL
         )
     """)
 
+    # main table w foreign keys
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS WeatherData (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            fetch_timestamp_id INTEGER NOT NULL,
+            datetime INTEGER NOT NULL,
+            temp REAL,
+            humidity REAL,
+            wind_speed REAL,
+            description_id INTEGER NOT NULL,
+            FOREIGN KEY (fetch_timestamp_id) REFERENCES FetchTimestamps(id),
+            FOREIGN KEY (description_id) REFERENCES WeatherDescriptions(id),
+            UNIQUE(fetch_timestamp_id, datetime)
+        )
+    """)
+    
+
+def get_or_create_description_id(cur, description):
+    # get existing description_id or create new
+    cur.execute("SELECT id FROM WeatherDescriptions WHERE description = ?", (description,))
+    row = cur.fetchone()
+    
+    if row:
+        return row[0]
+    else:
+        cur.execute("INSERT INTO WeatherDescriptions (description) VALUES (?)", (description,))
+        return cur.lastrowid
+
+
+def get_or_create_timestamp_id(cur, timestamp):
+    # get existing timestamp_id or create new
+    cur.execute("SELECT id FROM FetchTimestamps WHERE timestamp = ?", (timestamp,))
+    row = cur.fetchone()
+    
+    if row:
+        return row[0]
+    else:
+        cur.execute("INSERT INTO FetchTimestamps (timestamp) VALUES (?)", (timestamp,))
+        return cur.lastrowid
+    
+
+def store_weather_data(conn, weather_list):
+    cur = conn.cursor()
+    init_database(conn)
+
     inserted = 0 
-    duplicate_count = 0
+    skipped = 0
 
     for w in weather_list:
         try:
-            cur.execute("""
-                INSERT INTO WeatherData (datetime, temp, humidity, wind_speed, description)
-                VALUES (?, ?, ?, ?, ?)
-            """, (w["datetime"], w["temp"], w["humidity"], w["wind_speed"], w["description"]))
+            # get or create foreign key ids
+            description_id = get_or_create_description_id(cur, w["description"])
+            timestamp_id = get_or_create_timestamp_id(cur, w["fetch_timestamp"])
             
+            # insert weather data w foreign keys
+            cur.execute("""
+                INSERT INTO WeatherData 
+                (fetch_timestamp_id, datetime, temp, humidity, wind_speed, description_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """, (timestamp_id, w["datetime"], w["temp"], w["humidity"], 
+                  w["wind_speed"], description_id))
             inserted += 1
 
         except sqlite3.IntegrityError:
-            duplicate_count += 1
-
+            skipped += 1
+            
     conn.commit()
-    print(f"✓ Inserted {inserted} new weather records")
-    print(f"✓ Skipped {duplicate_count} duplicates")
+    print(f"Weather data successfully stored")
+    print(f"Inserted: {inserted}, Skipped (duplicates): {skipped}")
 
 
 
 if __name__ == "__main__":
-    print("=" * 60)
-    print("WEATHER DATA COLLECTION")
-    print("=" * 60)
-    print()
-    
+    import time
     conn = sqlite3.connect(DB_NAME)
-    weather_data = get_weather_data("Detroit")
+
+    num_fetches = 4
+    delay_hours = 3
+
+    for i in range(num_fetches):
+        # print(f"Fetch {i+1}/{num_fetches}")
+        weather_data = get_weather_data("Detroit")
+
+        if weather_data:
+            store_weather_data(conn, weather_data)
+        
+        if i < num_fetches - 1:
+            print(f"Wait {delay_hours} hours before next run to fetch new data")
+            time.sleep(delay_hours * 3600)  # convert hrs to s
     
-    if not weather_data:
-        print()
-        print("No weather data found.")
+    cur = conn.cursor()
+    cur.execute("SELECT COUNT(*) FROM WeatherData")
+    total = cur.fetchone()[0]
+
+    print(f"Total weather records in database: {total}")
+        
+    if total < 100:
+        print(f"Need {100 - total} more to reach 100. Run script again")
     else:
-        store_weather_data(conn, weather_data)
-        
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM WeatherData")
-        total = cur.fetchone()[0]
-        
-        print()
-        print(f"Total weather records in database: {total}")
-        
-        if total < 100:
-            print(f"   Need {100 - total} more to reach 100")
-            print(f"   Run this script again to collect more!")
-        else:
-            print(f"   ✓ Goal reached! (100+)")
+        print(f"100 reached")
     
     conn.close()
-    
-    print()
-    print("=" * 60)
