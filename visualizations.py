@@ -8,15 +8,16 @@ def plot_avg_delay_by_hour(db_name="project_data.db"):
     conn = sqlite3.connect(db_name)
     cur = conn.cursor()
     
-    # Avg delay
+    # Updated query to join with Timestamps table
     query = """
         SELECT 
-            CAST(SUBSTR(f.scheduled_departure, 12, 2) AS INTEGER) as hour,
+            CAST(SUBSTR(T.timestamp, 12, 2) AS INTEGER) as hour,
             AVG(fd.delay_minutes) as avg_delay,
             COUNT(*) as flight_count
-        FROM Flights f
-        JOIN FlightDelays fd ON f.flight_id = fd.flight_id
-        WHERE f.scheduled_departure IS NOT NULL
+        FROM Flights F
+        JOIN FlightDelays fd ON F.flight_id = fd.flight_id
+        JOIN Timestamps T ON F.scheduled_departure_id = T.id
+        WHERE T.timestamp IS NOT NULL
         GROUP BY hour
         ORDER BY hour
     """
