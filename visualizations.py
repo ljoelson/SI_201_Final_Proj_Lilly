@@ -15,7 +15,7 @@ def plot_avg_delay_by_hour(db_name="project_data.db"):
             AVG(fd.delay_minutes) as avg_delay,
             COUNT(*) as flight_count
         FROM Flights f
-        JOIN flight_delays fd ON f.flight_id = fd.flight_id
+        JOIN FlightDelays fd ON f.flight_id = fd.flight_id
         WHERE f.scheduled_departure IS NOT NULL
         GROUP BY hour
         ORDER BY hour
