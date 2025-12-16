@@ -1,0 +1,12 @@
+FLIGHT DELAY DURING PRECIPITATION
+Total flights: 113
+Flights with delay data: 113
+Total weather records: 100
+Flight dates range: 2025-12-15T14:15:00+00:00 to 2025-12-15T22:55:00+00:00
+Weather fetch dates range: 2025-12-15T14:13:27.711419 to 2025-12-15T19:07:13.108453
+Weather records with precipitation: 10
+
+Total flight-weather matches within 3 hours: 258
+
+No flights found during precipitation weather.
+(Out of 258 flight-weather matches)
