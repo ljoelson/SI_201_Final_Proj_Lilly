@@ -29,7 +29,7 @@ def get_weather_data(city_name):
             data = response.json()
 
             if "list" not in data:
-                print("Error: API did not include 'list'. Full response:")
+                print("Error: API didn't include 'list'. Full response:")
                 print(data)
                 return []
 
