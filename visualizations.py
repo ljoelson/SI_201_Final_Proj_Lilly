@@ -127,8 +127,6 @@ def plot_avg_precipitation_by_hour(db_name="project_data.db"):
 
 
 if __name__ == "__main__":
-    print("Generating Flight Delay Chart (by hour)...")
     plot_avg_delay_by_hour()
     
-    print("\nGenerating Weather Precipitation Chart (by hour)...")
     plot_avg_precipitation_by_hour()
